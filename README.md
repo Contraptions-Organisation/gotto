@@ -27,7 +27,9 @@ This project brings the beloved Otto ninja robot to the TinyGo ecosystem, allowi
 
 #### One-line installer (Linux)
 
-Run the following command to install Go, TinyGo, required build tools, and udev rules in a single step (works on Debian/Ubuntu, Fedora, and Arch-based distributions). You can override versions by prefixing `GO_VERSION=...` or `TINYGO_VERSION=...`.
+Run the following command to install Go, TinyGo, required build tools, udev rules, USB-serial permissions, and MicroPython tooling in a single step (works on Debian/Ubuntu, Fedora, and Arch-based distributions). You can override versions by prefixing `GO_VERSION=...` or `TINYGO_VERSION=...`.
+
+The installer also adds your user to the `dialout` group (needed to flash or open a serial monitor on `/dev/ttyACM*` without `sudo`) and installs `mpremote`, `esptool`, and `adafruit-nrfutil` for working with MicroPython-based boards. Skip the MicroPython tooling with `SKIP_MICROPYTHON=1`. If you were just added to `dialout`, log out and back in (or run `newgrp dialout`) before flashing.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/RebootED-education/gotto/main/scripts/install_toolchain.sh | bash

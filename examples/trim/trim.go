@@ -5,6 +5,7 @@ import (
 	"machine"
 	"time"
 
+	"github.com/HattoriHanzo031/gotto/board"
 	"github.com/HattoriHanzo031/gotto/buzzer"
 	"github.com/HattoriHanzo031/gotto/ninja"
 	"github.com/HattoriHanzo031/gotto/servo"
@@ -12,21 +13,23 @@ import (
 )
 
 var (
-	pwmFoot   = machine.PWM2
-	pwmLeg    = machine.PWM1
-	pwmBuzzer = machine.PWM0
+	pwmFoot   = board.FootPWM
+	pwmLeg    = board.LegPWM
+	pwmBuzzer = board.BuzzerPWM
 
-	rLeg  = machine.P0_24
-	lLeg  = machine.P0_22
-	rFoot = machine.P0_20
-	lFoot = machine.P0_17
+	rLeg  = board.RLegPin
+	lLeg  = board.LLegPin
+	rFoot = board.RFootPin
+	lFoot = board.LFootPin
 
-	buzzerPin = machine.P0_31
+	buzzerPin = board.BuzzerPin
 )
 
 func main() {
 	machine.InitSerial()
 	time.Sleep(3 * time.Second)
+
+	board.EnableVcc()
 
 	legArr := must(tgservo.NewArray(pwmLeg))
 	footArr := must(tgservo.NewArray(pwmFoot))

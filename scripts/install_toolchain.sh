@@ -13,10 +13,51 @@ GOTOOLCHAIN_VALUE="go${GO_VERSION}"
 export GOTOOLCHAIN="${GOTOOLCHAIN_VALUE}"
 OS_ID=""
 OS_LIKE=""
+SKIP_MICROPYTHON=${SKIP_MICROPYTHON:-0}
+NEEDS_RELOGIN=0
 
 log() {
 	printf "[%s] %s\n" "$(date +'%H:%M:%S')" "$*"
 }
+
+SUDO_KEEPALIVE_PID=""
+
+ensure_sudo() {
+	if [[ "$(id -u)" -eq 0 ]]; then
+		return
+	fi
+	if sudo -n true 2>/dev/null; then
+		: # already have a cached/passwordless ticket
+	elif [[ -t 0 || -t 1 ]]; then
+		log "This installer needs sudo (package install, group membership, udev rules). Enter your password if prompted."
+		if ! sudo -v; then
+			echo "Could not obtain sudo access. Re-run this script from a real terminal, or as a user with sudo rights." >&2
+			exit 1
+		fi
+	else
+		cat >&2 <<-'EOF'
+	This installer needs sudo, but no password can be prompted for in this
+	non-interactive session (no TTY attached, e.g. run through an agent/CI).
+	Run it from a real terminal instead, for example:
+
+	    ./scripts/install_toolchain.sh
+
+	or grant passwordless sudo for this user beforehand.
+	EOF
+		exit 1
+	fi
+	# Keep the sudo ticket alive for the duration of the script so later
+	# `sudo` calls (apt, dpkg, usermod, ...) don't prompt again mid-run.
+	( while true; do sudo -n true; sleep 60; kill -0 "$$" 2>/dev/null || exit; done ) &
+	SUDO_KEEPALIVE_PID=$!
+}
+
+stop_sudo_keepalive() {
+	if [[ -n "${SUDO_KEEPALIVE_PID}" ]]; then
+		kill "${SUDO_KEEPALIVE_PID}" 2>/dev/null || true
+	fi
+}
+trap stop_sudo_keepalive EXIT
 
 append_path_line() {
 	local line=$1
@@ -89,15 +130,15 @@ install_packages() {
 		*debian*|*ubuntu*|*pop*)
 			log "Installing dependencies via apt"
 			sudo apt update
-			sudo apt install -y build-essential git wget tar clang gcc-arm-none-eabi libnewlib-arm-none-eabi
+			sudo apt install -y build-essential git wget tar clang gcc-arm-none-eabi libnewlib-arm-none-eabi python3 python3-pip python3-venv pipx
 			;;
 		*fedora*)
 			log "Installing dependencies via dnf"
-			sudo dnf install -y @'Development Tools' git wget tar clang arm-none-eabi-gcc-cs arm-none-eabi-newlib
+			sudo dnf install -y @'Development Tools' git wget tar clang arm-none-eabi-gcc-cs arm-none-eabi-newlib python3 python3-pip pipx
 			;;
 		*arch*|*manjaro*|*endeavouros*)
 			log "Installing dependencies via pacman"
-			sudo pacman -Sy --needed base-devel git wget tar clang arm-none-eabi-gcc arm-none-eabi-newlib
+			sudo pacman -Sy --needed base-devel git wget tar clang arm-none-eabi-gcc arm-none-eabi-newlib python python-pip python-pipx
 			;;
 		unknown*)
 			echo "Unsupported distribution: unable to detect OS. Please install dependencies manually." >&2
@@ -108,6 +149,58 @@ install_packages() {
 			exit 1
 			;;
 	esac
+}
+
+ensure_serial_permissions() {
+	if ! getent group dialout >/dev/null 2>&1; then
+		log "No 'dialout' group on this system; skipping serial permission setup"
+		return
+	fi
+	if id -nG "${USER}" | tr ' ' '\n' | grep -qx dialout; then
+		log "${USER} is already in the 'dialout' group"
+		return
+	fi
+	log "Adding ${USER} to the 'dialout' group (required to flash/monitor over USB serial without sudo)"
+	sudo usermod -aG dialout "${USER}"
+	NEEDS_RELOGIN=1
+}
+
+install_micropython_tools() {
+	if [[ "${SKIP_MICROPYTHON}" == "1" ]]; then
+		log "Skipping MicroPython tooling (SKIP_MICROPYTHON=1)"
+		return
+	fi
+	local tools=(mpremote esptool adafruit-nrfutil)
+	append_path_line 'export PATH="$HOME/.local/bin:$PATH"'
+	if command -v pipx >/dev/null 2>&1; then
+		log "Installing MicroPython tooling (${tools[*]}) via pipx"
+		for tool in "${tools[@]}"; do
+			pipx install --force "${tool}"
+		done
+		pipx ensurepath >/dev/null 2>&1 || true
+	elif command -v pip3 >/dev/null 2>&1; then
+		log "pipx not available; installing MicroPython tooling (${tools[*]}) via pip3 --user"
+		if ! pip3 install --user --upgrade "${tools[@]}" 2>/tmp/gotto-pip-error; then
+			if grep -q externally-managed-environment /tmp/gotto-pip-error; then
+				log "System pip is externally managed; retrying in an isolated venv at ${HOME}/.local/share/gotto-micropython"
+				python3 -m venv "${HOME}/.local/share/gotto-micropython"
+				"${HOME}/.local/share/gotto-micropython/bin/pip" install --upgrade "${tools[@]}"
+				mkdir -p "${HOME}/.local/bin"
+				for tool in "${tools[@]}"; do
+					ln -sf "${HOME}/.local/share/gotto-micropython/bin/${tool}" "${HOME}/.local/bin/${tool}"
+				done
+			else
+				cat /tmp/gotto-pip-error >&2
+				rm -f /tmp/gotto-pip-error
+				return 1
+			fi
+		fi
+		rm -f /tmp/gotto-pip-error
+	else
+		log "Neither pipx nor pip3 found; skipping MicroPython tooling"
+		return
+	fi
+	log "MicroPython tools installed: mpremote (REPL/file transfer), esptool (ESP32/8266 flashing), adafruit-nrfutil (nRF52 flashing/DFU)"
 }
 
 install_go() {
@@ -177,11 +270,17 @@ install_tinygo() {
 
 main() {
 	detect_os
+	ensure_sudo
 	log "Installing GOtto toolchain (Go ${GO_VERSION}, TinyGo ${TINYGO_VERSION})"
 	install_packages
 	install_go
 	install_tinygo
+	ensure_serial_permissions
+	install_micropython_tools
 	log "Installation complete. Restart your shell session or source your shell rc file (~/.profile, ~/.bashrc, ~/.zshrc) to refresh PATH."
+	if [[ "${NEEDS_RELOGIN}" == "1" ]]; then
+		log "You were just added to the 'dialout' group: log out and back in (or run 'newgrp dialout' in this shell) before flashing/monitoring over USB."
+	fi
 }
 
 main "$@"

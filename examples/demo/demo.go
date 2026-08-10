@@ -1,39 +1,53 @@
 package main
 
 import (
-	"machine"
 	"time"
 
+	"github.com/HattoriHanzo031/gotto/board"
 	"github.com/HattoriHanzo031/gotto/buzzer"
 	"github.com/HattoriHanzo031/gotto/servo"
-	"tinygo.org/x/drivers/hcsr04"
 	tgservo "tinygo.org/x/drivers/servo"
 )
 
 var (
-	pwmFoot   = machine.PWM2
-	pwmLeg    = machine.PWM1
-	pwmBuzzer = machine.PWM0
+	pwmFoot   = board.FootPWM
+	pwmLeg    = board.LegPWM
+	pwmBuzzer = board.BuzzerPWM
 
-	rLegPin  = machine.P0_24
-	lLegPin  = machine.P0_22
-	rFootPin = machine.P0_20
-	lFootPin = machine.P0_17
+	rLegPin  = board.RLegPin
+	lLegPin  = board.LLegPin
+	rFootPin = board.RFootPin
+	lFootPin = board.LFootPin
 
-	usTrigPin = machine.P1_00
-	usEchoPin = machine.P0_11
-
-	buzzerPin = machine.P0_31
+	buzzerPin = board.BuzzerPin
 )
 
-const (
-	obstacleThresholdMm = 150
-	sensorPollInterval  = 50 * time.Millisecond
-)
+// beepPitch is the single pitch used for every BIOS-style beep code below.
+// Only the beep *count* carries meaning, like a motherboard POST code.
+const beepPitch = buzzer.C5
 
 func main() {
 	time.Sleep(3 * time.Second)
 	println("GOtto hardware diagnostic demo starting...")
+
+	bz := buzzer.New(buzzer.NewPwmChannel(pwmBuzzer, buzzerPin))
+	if err := bz.Configure(); err != nil {
+		panic(err)
+	}
+
+	// 1 beep: board booted, buzzer works.
+	println("Beep code 1: board booted")
+	beep(bz, 1)
+	time.Sleep(500 * time.Millisecond)
+
+	println("Enabling servo power (VCC rail)")
+	board.EnableVcc()
+	time.Sleep(200 * time.Millisecond)
+
+	// 2 beeps: VCC rail enabled, about to configure servos.
+	println("Beep code 2: servo power on")
+	beep(bz, 2)
+	time.Sleep(500 * time.Millisecond)
 
 	legArr := must(tgservo.NewArray(pwmLeg))
 	footArr := must(tgservo.NewArray(pwmFoot))
@@ -43,26 +57,29 @@ func main() {
 	lfServo := servo.New360(must(footArr.Add(lFootPin)), 450, 2550)
 	rfServo := servo.New360(must(footArr.Add(rFootPin)), 450, 2550)
 
-	bz := buzzer.New(buzzer.NewPwmChannel(pwmBuzzer, buzzerPin))
-	if err := bz.Configure(); err != nil {
-		panic(err)
-	}
-
-	println("Step 1/3: buzzer self-test")
-	buzzerSelfTest(bz)
-
-	println("Step 2/3: ultrasonic + buzzer interaction (bring an object within 15cm)")
-	us := hcsr04.New(usTrigPin, usEchoPin)
-	us.Configure()
-	buzzerUltrasonicTest(bz, &us)
-
-	println("Step 3/3: exercising legs and feet individually")
+	// 3 beeps: Left Leg, then silence while it actually moves.
+	println("Beep code 3: testing Left Leg")
+	beep(bz, 3)
 	testLegServo("Left Leg", llServo)
+
+	// 4 beeps: Right Leg.
+	println("Beep code 4: testing Right Leg")
+	beep(bz, 4)
 	testLegServo("Right Leg", rlServo)
+
+	// 5 beeps: Left Foot.
+	println("Beep code 5: testing Left Foot")
+	beep(bz, 5)
 	testFootServo("Left Foot", lfServo)
+
+	// 6 beeps: Right Foot.
+	println("Beep code 6: testing Right Foot")
+	beep(bz, 6)
 	testFootServo("Right Foot", rfServo)
 
+	// Long steady tone: diagnostics finished.
 	println("Diagnostics finished. Restart the board to rerun.")
+	_ = bz.Tone(buzzer.Note{Period: beepPitch, Duration: 1 * time.Second})
 	for {
 		time.Sleep(time.Hour)
 	}
@@ -77,31 +94,15 @@ func must[T any](v T, err error) T {
 	return v
 }
 
-func buzzerSelfTest(bz *buzzer.Buzzer) {
-	sequence := []buzzer.Note{
-		{Period: buzzer.A4, Duration: 200 * time.Millisecond},
-		{Period: buzzer.C5, Duration: 200 * time.Millisecond},
-		{Period: buzzer.E5, Duration: 200 * time.Millisecond},
-		{Period: buzzer.A5, Duration: 300 * time.Millisecond},
-		{Period: buzzer.Silence, Duration: 150 * time.Millisecond},
-	}
-	for i := 0; i < 2; i++ {
-		for _, note := range sequence {
-			_ = bz.Tone(note)
-		}
-		_ = bz.Tone(buzzer.Note{Period: buzzer.Silence, Duration: 250 * time.Millisecond})
-	}
-}
-
-func buzzerUltrasonicTest(bz *buzzer.Buzzer, us *hcsr04.Device) {
-	note := buzzer.Note{Period: buzzer.F4, Duration: 150 * time.Millisecond}
-	rest := buzzer.Note{Period: buzzer.Silence, Duration: 100 * time.Millisecond}
-	for i := 0; i < 120; i++ {
-		if detectedObstacle(us) {
-			_ = bz.Tone(note)
-		} else {
-			_ = bz.Tone(rest)
-		}
+// beep plays `count` short, evenly spaced beeps at a fixed pitch, BIOS POST
+// style: the number of beeps identifies what's about to happen, and nothing
+// physical moves until the beeps are done.
+func beep(bz *buzzer.Buzzer, count int) {
+	tone := buzzer.Note{Period: beepPitch, Duration: 150 * time.Millisecond}
+	rest := buzzer.Note{Period: buzzer.Silence, Duration: 150 * time.Millisecond}
+	for i := 0; i < count; i++ {
+		_ = bz.Tone(tone)
+		_ = bz.Tone(rest)
 	}
 }
 
@@ -128,9 +129,4 @@ func testFootServo(label string, s servo.Servo360) {
 		time.Sleep(800 * time.Millisecond)
 	}
 	_ = s.SetSpeed(0)
-}
-
-func detectedObstacle(us *hcsr04.Device) bool {
-	dist := us.ReadDistance()
-	return dist != 0 && dist < obstacleThresholdMm
 }
