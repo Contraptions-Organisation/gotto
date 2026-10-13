@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	walkSpeed         = 20
+	walkSpeed         = 50
 	tiltAngle         = 45
 	stepDuration      = 600 * time.Millisecond
 	numCustomCommands = 10
@@ -257,9 +257,7 @@ func (n *Ninja) MoveRightFoot(speed int, duration time.Duration) error {
 	return n.error()
 }
 
-// LeftLegSpin performs a tilt and spinning motion on the left leg with the given speed and duration.
-// Positive speed spins clockwise, while negative speed spins counterclockwise.
-// It requires the robot to be in walk mode.
+// LeftLegSpin tilts to the left (planting the left foot on the ground) and spins the left foot forward.
 func (n *Ninja) LeftLegSpin(speed int, duration time.Duration) error {
 	if n.mode != ModeWalk {
 		return ErrInvalidMode
@@ -270,9 +268,7 @@ func (n *Ninja) LeftLegSpin(speed int, duration time.Duration) error {
 	return n.error()
 }
 
-// RightLegSpin performs a tilt and spinning motion on the right leg with the given speed and duration.
-// Positive speed spins clockwise, while negative speed spins counterclockwise.
-// It requires the robot to be in walk mode.
+// RightLegSpin tilts to the right (planting the right foot on the ground) and spins the right foot forward.
 func (n *Ninja) RightLegSpin(speed int, duration time.Duration) error {
 	if n.mode != ModeWalk {
 		return ErrInvalidMode
