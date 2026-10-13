@@ -73,13 +73,14 @@ func main() {
 		RlAngle:           12,
 	})
 
-	println("Centering to Home position...")
+	println("Centering to Home position (both feet planted flat)...")
 	if err := n.Mode(ninja.ModeWalk); err != nil {
 		println("Error setting walk mode:", err.Error())
 	}
-	time.Sleep(1 * time.Second)
+	_ = n.Home()
+	time.Sleep(1500 * time.Millisecond)
 
-	println("Starting continuous forward walk...")
+	println("Starting controlled forward walk (both feet planted between steps)...")
 	step := 1
 	for {
 		led.Low()
@@ -88,7 +89,8 @@ func main() {
 			println("Walk error:", err.Error())
 		}
 		led.High()
-		time.Sleep(50 * time.Millisecond)
+		// Stable pause with both feet flat on the ground
+		time.Sleep(400 * time.Millisecond)
 		step++
 	}
 }

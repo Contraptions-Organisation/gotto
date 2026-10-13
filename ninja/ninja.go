@@ -9,9 +9,9 @@ import (
 )
 
 const (
-	walkSpeed         = 50
-	tiltAngle         = 45
-	stepDuration      = 600 * time.Millisecond
+	walkSpeed         = 30
+	tiltAngle         = 20
+	stepDuration      = 450 * time.Millisecond
 	numCustomCommands = 10
 )
 
@@ -104,12 +104,12 @@ func New(rLeg, lLeg servo.Servo180, rFoot, lFoot servo.Servo360, buzzer *buzzer.
 // setAngleSmooth gradually changes the angle from current to new in 30 steps
 // TODO: make step count and delay configurable
 func setAngleSmooth(new, current int, set func(int) error) error {
-	increment := float32(new-current) / 30.0
-	for i := range 30 {
+	increment := float32(new-current) / 25.0
+	for i := range 25 {
 		if err := set(current + int(increment*float32(i+1))); err != nil {
 			return err
 		}
-		time.Sleep(5 * time.Millisecond)
+		time.Sleep(8 * time.Millisecond)
 	}
 	return nil
 }
@@ -200,10 +200,10 @@ func (n *Ninja) Tilt(dir TiltDir) error {
 		n.rLegAngle(90)
 		n.lLegAngle(90)
 	case TiltLeft:
-		n.rLegAngle(90 + angle + 15)
+		n.rLegAngle(90 + angle)
 		n.lLegAngle(90 - angle)
 	case TiltRight:
-		n.lLegAngle(90 + angle + 15)
+		n.lLegAngle(90 + angle)
 		n.rLegAngle(90 - angle)
 	default:
 		return ErrInvalidDirection
@@ -263,8 +263,10 @@ func (n *Ninja) LeftLegSpin(speed int, duration time.Duration) error {
 		return ErrInvalidMode
 	}
 	n.Tilt(TiltLeft)
+	time.Sleep(50 * time.Millisecond)
 	n.MoveLeftFoot(speed, duration)
 	n.Tilt(TiltReturnFromLeft)
+	time.Sleep(150 * time.Millisecond) // both feet flat on ground
 	return n.error()
 }
 
@@ -274,8 +276,10 @@ func (n *Ninja) RightLegSpin(speed int, duration time.Duration) error {
 		return ErrInvalidMode
 	}
 	n.Tilt(TiltRight)
+	time.Sleep(50 * time.Millisecond)
 	n.MoveRightFoot(speed, duration)
 	n.Tilt(TiltReturnFromRight)
+	time.Sleep(150 * time.Millisecond) // both feet flat on ground
 	return n.error()
 }
 
@@ -292,6 +296,10 @@ func (n *Ninja) Walk(steps int) error {
 		return nil
 	}
 
+	// Make sure both feet start flat on the ground
+	_ = n.Home()
+	time.Sleep(150 * time.Millisecond)
+
 	speed := walkSpeed
 	if steps < 0 {
 		speed = -walkSpeed
@@ -306,6 +314,8 @@ func (n *Ninja) Walk(steps int) error {
 		n.err = n.RightLegSpin(speed, rStepDuration)
 	}
 
+	// Settle with both feet flat on the ground
+	_ = n.Home()
 	return n.error()
 }
 
