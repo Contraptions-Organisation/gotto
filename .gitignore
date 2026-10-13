@@ -1,0 +1,12 @@
+# Binaries & firmware builds
+*.uf2
+*.hex
+*.bin
+*.elf
+*.o
+
+# OS & editor artifacts
+.DS_Store
+Thumbs.db
+*.swp
+*~

@@ -4,6 +4,7 @@ import (
 	"machine"
 	"time"
 
+	"github.com/HattoriHanzo031/gotto/board"
 	"github.com/HattoriHanzo031/gotto/buzzer"
 	"github.com/HattoriHanzo031/gotto/ninja"
 	"github.com/HattoriHanzo031/gotto/remote"
@@ -14,25 +15,27 @@ import (
 )
 
 var (
-	footPwm   = machine.PWM2
-	legPwm    = machine.PWM1
-	buzzerPwm = machine.PWM0
+	footPwm   = board.FootPWM
+	legPwm    = board.LegPWM
+	buzzerPwm = board.BuzzerPWM
 
-	rLeg  = machine.P0_24
-	lLeg  = machine.P0_22
-	rFoot = machine.P0_20
-	lFoot = machine.P0_17
+	rLeg  = board.RLegPin
+	lLeg  = board.LLegPin
+	rFoot = board.RFootPin
+	lFoot = board.LFootPin
 
-	usTrig = machine.P1_00
-	usEcho = machine.P0_11
+	usTrig = board.USTrigPin
+	usEcho = board.USEchoPin
 
-	buzzerPin = machine.P0_31
+	buzzerPin = board.BuzzerPin
 
-	buttonPin = machine.P1_04
+	buttonPin = board.ButtonPin
 )
 
 func main() {
 	time.Sleep(3 * time.Second)
+
+	board.EnableVcc()
 
 	legArr := must(tgservo.NewArray(legPwm))
 	footArr := must(tgservo.NewArray(footPwm))
