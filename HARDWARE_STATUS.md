@@ -30,8 +30,18 @@
 
 ---
 
-## 4. Next Session Action Items
+## 4. Serial Command Bridge to ESP32 Head
+- **UART Peripheral**: `machine.UART0` configured at 115200 baud, 8N1.
+- **RX Pin**: Header `022` (`machine.P0_22`) — receives motion commands from ESP32-S3 TX.
+- **TX Pin**: Header `024` (`machine.P0_24`) — transmits status & proximity telemetry to ESP32-S3 RX.
+- **Firmware Package**: [`examples/serial_bridge/main.go`](examples/serial_bridge/main.go) (Verified compiling with TinyGo 0.39.0).
+- **Supported Motion Commands**: `WAKEUP`, `WALK <count>`, `MOONWALK <count>`, `PIVOT <turns>`, `WIGGLE`, `CURIOUS`, `SLEEP`, `STOP`.
+- **Telemetry Emitted**: `READY` (on startup), `DONE <command>` (motion completion), `PROXIMITY <mm>` (when HC-SR04 detects target within 350mm).
+
+---
+
+## 5. Next Session Action Items
 1. Reseat Nice!Nano into red shield and bridge `BAT` to `5V` (or use short USB cable from battery).
-2. Flash `examples/walk_and_buzz` and observe untethered biped walking.
-3. Fine-tune trim balance (`ninja.Trim`) if needed.
-4. Wire HW-486 / LM393 light sensor to expansion header (e.g. `022`).
+2. Flash `examples/serial_bridge` (`python3 scripts/flash.py examples/serial_bridge`).
+3. Wire NiceNano Header 022 (`RX`) to ESP32 TX (`D4`), Header 024 (`TX`) to ESP32 RX (`D5`), and common GND.
+4. Test live interrogation loop: verify citizen approach triggers `PROXIMITY` and ESP32 sends `WALK` / `WIGGLE` / `CURIOUS` commands.
