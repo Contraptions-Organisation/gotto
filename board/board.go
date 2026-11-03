@@ -21,20 +21,25 @@ const (
 	USTrigPin = machine.P1_00
 	USEchoPin = machine.P0_11
 
-	BuzzerPin = machine.P1_13
+	BuzzerPin = machine.P0_31
 
 	ButtonPin = machine.P1_04
 
-	// VccPin is the nice!nano/Super Mini switched VCC rail (P0.13). Driving
-	// it high cuts power to the rail (saving battery when idle); driving it
-	// low enables it. Servos are powered from this switched rail, so it must
-	// be enabled before configuring or moving any servo.
+	// VccPin is the SuperMini/nice!nano switched VCC rail (P0.13). Driving
+	// it high enables the onboard 3.3V regulator (powering the shield and servos);
+	// driving it low cuts power to the rail.
 	VccPin = machine.P0_13
 )
 
-// EnableVcc drives the switched VCC rail low, powering on anything wired to
-// it (e.g. servos). Call this before configuring servos.
+// EnableVcc drives the switched VCC rail high, powering on anything wired to
+// it (e.g. servos, buzzer, sensors on the shield). Call this at startup.
 func EnableVcc() {
+	VccPin.Configure(machine.PinConfig{Mode: machine.PinOutput})
+	VccPin.High()
+}
+
+// DisableVcc drives the switched VCC rail low, cutting power to save energy.
+func DisableVcc() {
 	VccPin.Configure(machine.PinConfig{Mode: machine.PinOutput})
 	VccPin.Low()
 }

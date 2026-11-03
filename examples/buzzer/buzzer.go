@@ -1,14 +1,14 @@
 package main
 
 import (
+	"machine"
 	"time"
 
-	"github.com/HattoriHanzo031/gotto/board"
 	"github.com/HattoriHanzo031/gotto/buzzer"
 )
 
-var pwm = board.BuzzerPWM
-var buzzerPin = board.BuzzerPin
+var pwm = machine.PWM0
+var buzzerPin = machine.P0_31
 
 var melodyImperial []buzzer.Note = []buzzer.Note{
 	{Period: buzzer.A4, Duration: 500 * time.Millisecond},
